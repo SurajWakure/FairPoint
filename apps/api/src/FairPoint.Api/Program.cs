@@ -10,29 +10,71 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Controllers
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
 
-// Register database connection factory.
+// Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition(
+        "Bearer",
+        new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+            Description = "Enter your JWT token. Example: Bearer {your token}"
+        });
+
+    options.AddSecurityRequirement(
+        new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+        {
+            {
+                new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+                {
+                    Reference =
+                        new Microsoft.OpenApi.Models.OpenApiReference
+                        {
+                            Type =
+                                Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+
+                            Id = "Bearer"
+                        }
+                },
+                Array.Empty<string>()
+            }
+        });
+});
+
+// Database
 builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
+
+// User
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IPasswordService,PasswordService>();
-builder.Services.AddScoped<IAuthService,AuthService>();
-builder.Services.AddScoped<IJwtService,JwtService>();
-builder.Services.AddScoped<IComplaintRepository,ComplaintRepository>();
-builder.Services.AddScoped<IComplaintService,ComplaintService>();
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 
+// Authentication
+builder.Services.AddScoped<IPasswordService, PasswordService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
 
+// Complaints
+builder.Services.AddScoped<IComplaintRepository, ComplaintRepository>();
+builder.Services.AddScoped<IComplaintService, ComplaintService>();
+
+builder.Services.AddScoped<IComplaintResponseRepository,ComplaintResponseRepository>();
+builder.Services.AddScoped<IComplaintResponseService,ComplaintResponseService>();
+
+// Complaint Parties
+builder.Services.AddScoped<IComplaintPartyRepository, ComplaintPartyRepository>();
+builder.Services.AddScoped<IComplaintPartyService, ComplaintPartyService>();
+
+// JWT Configuration
 builder.Services.Configure<JwtOptions>(
-    builder.Configuration.GetSection(
-        JwtOptions.SectionName));
-
-builder.Services.AddScoped<
-    IJwtService,
-    JwtService>();
+    builder.Configuration.GetSection(JwtOptions.SectionName));
 
 var jwtKey =
     builder.Configuration["Jwt:Key"]
@@ -59,30 +101,26 @@ builder.Services
 
                 IssuerSigningKey =
                     new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(
-                            builder.Configuration["Jwt:Key"]!))
+                        Encoding.UTF8.GetBytes(jwtKey))
             };
     });
 
 builder.Services.AddAuthorization();
 
-
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Swagger
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-// HTTPS redirection is temporarily disabled
-// because our current development profile uses HTTP.
-// app.UseHttpsRedirection();
-
-// Map API controllers.
+// Authentication & Authorization
 app.UseAuthentication();
-
 app.UseAuthorization();
 
+// Controllers
 app.MapControllers();
+
 app.Run();
