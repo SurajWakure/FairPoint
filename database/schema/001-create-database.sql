@@ -1,0 +1,5 @@
+IF DB_ID('FairPointDb') IS NULL
+BEGIN
+    CREATE DATABASE FairPointDb;
+END
+GO

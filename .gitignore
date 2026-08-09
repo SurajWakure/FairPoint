@@ -1,0 +1,18 @@
+# Visual Studio
+.vs/
+**/.vs/
+**/bin/
+**/obj/
+
+# Angular / Node
+node_modules/
+dist/
+.angular/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# VS Code
+.vscode/
