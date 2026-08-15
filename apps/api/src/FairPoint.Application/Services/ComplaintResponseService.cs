@@ -7,12 +7,14 @@ public class ComplaintResponseService : IComplaintResponseService
 {
     private readonly IComplaintResponseRepository _repository;
     private readonly IComplaintRepository _complaintRepository;
-
+    private readonly INotificationService _notificationService;
     public ComplaintResponseService(
-        IComplaintResponseRepository repository,
-        IComplaintRepository complaintRepository)
+    IComplaintResponseRepository repository,
+    INotificationService notificationService,
+    IComplaintRepository complaintRepository)
     {
         _repository = repository;
+        _notificationService = notificationService;
         _complaintRepository = complaintRepository;
     }
 

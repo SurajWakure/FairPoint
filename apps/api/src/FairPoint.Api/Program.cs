@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using FairPoint.Application.Configuration;
 using FairPoint.Application.Interfaces;
@@ -5,11 +6,20 @@ using FairPoint.Application.Services;
 using FairPoint.Infrastructure.Data;
 using FairPoint.Infrastructure.Repositories;
 using FairPoint.Infrastructure.Security;
+using FairPoint.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 500 * 1024 * 1024;
+});
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 500 * 1024 * 1024;
+});
 // Controllers
 builder.Services.AddControllers();
 
@@ -72,6 +82,32 @@ builder.Services.AddScoped<IComplaintResponseService,ComplaintResponseService>()
 builder.Services.AddScoped<IComplaintPartyRepository, ComplaintPartyRepository>();
 builder.Services.AddScoped<IComplaintPartyService, ComplaintPartyService>();
 
+builder.Services.AddScoped<IEvidenceRepository, EvidenceRepository>();
+builder.Services.AddScoped<IEvidenceService, EvidenceService>();
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+
+builder.Services.AddScoped<IModerationRepository, ModerationRepository>();
+builder.Services.AddScoped<IModerationService, ModerationService>();
+
+builder.Services.AddScoped<IAuditLogRepository,AuditLogRepository>();
+builder.Services.AddScoped<IAuditLogService,AuditLogService>();
+
+builder.Services.AddScoped<IAppealRepository,AppealRepository>();
+builder.Services.AddScoped<IAppealService,AppealService>();
+
+builder.Services.AddScoped<INotificationRepository,NotificationRepository>();
+builder.Services.AddScoped<INotificationService,NotificationService>();
+
+builder.Services.AddScoped<IReputationRepository,ReputationRepository>();
+builder.Services.AddScoped<IReputationService,ReputationService>();
+
+builder.Services.AddScoped<IReputationRepository, ReputationRepository>();
+builder.Services.AddScoped<IReputationService, ReputationService>();
+
+builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAppealService, AppealService>();
+
 // JWT Configuration
 builder.Services.Configure<JwtOptions>(
     builder.Configuration.GetSection(JwtOptions.SectionName));
@@ -101,7 +137,9 @@ builder.Services
 
                 IssuerSigningKey =
                     new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(jwtKey))
+                        Encoding.UTF8.GetBytes(jwtKey)),
+                RoleClaimType = ClaimTypes.Role,
+                NameClaimType = ClaimTypes.Name
             };
     });
 
