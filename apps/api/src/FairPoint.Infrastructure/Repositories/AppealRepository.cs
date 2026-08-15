@@ -4,18 +4,18 @@ using FairPoint.Domain.Entities;
 
 namespace FairPoint.Infrastructure.Repositories;
 
-public class ComplaintRepository : IComplaintRepository
+public class AppealRepository : IAppealRepository
 {
     private readonly IDbConnectionFactory _connectionFactory;
 
-    public ComplaintRepository(
+    public AppealRepository(
         IDbConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
     }
 
     public async Task<long> CreateAsync(
-        Complaint complaint,
+        Appeal appeal,
         CancellationToken cancellationToken = default)
     {
         using var connection =
@@ -30,60 +30,39 @@ public class ComplaintRepository : IComplaintRepository
             connection.CreateCommand();
 
         command.CommandText = """
-            INSERT INTO dbo.Complaints
+            INSERT INTO dbo.Appeals
             (
-                CreatedByUserId,
-                CategoryId,
-                SeverityId,
-                StatusId,
-                Title,
-                Description,
-                CreatedAt,
-                UpdatedAt
+                ComplaintId,
+                SubmittedByUserId,
+                Reason,
+                StatusCode,
+                CreatedAt
             )
-            OUTPUT INSERTED.ComplaintId
+            OUTPUT INSERTED.AppealId
             VALUES
             (
-                @CreatedByUserId,
-                @CategoryId,
-                @SeverityId,
-                @StatusId,
-                @Title,
-                @Description,
-                SYSUTCDATETIME(),
+                @ComplaintId,
+                @SubmittedByUserId,
+                @Reason,
+                'SUBMITTED',
                 SYSUTCDATETIME()
             );
             """;
 
         AddParameter(
             command,
-            "@CreatedByUserId",
-            complaint.CreatedByUserId);
+            "@ComplaintId",
+            appeal.ComplaintId);
 
         AddParameter(
             command,
-            "@CategoryId",
-            complaint.CategoryId);
+            "@SubmittedByUserId",
+            appeal.SubmittedByUserId);
 
         AddParameter(
             command,
-            "@SeverityId",
-            complaint.SeverityId);
-
-        AddParameter(
-            command,
-            "@StatusId",
-            complaint.StatusId);
-
-        AddParameter(
-            command,
-            "@Title",
-            complaint.Title);
-
-        AddParameter(
-            command,
-            "@Description",
-            complaint.Description);
+            "@Reason",
+            appeal.Reason);
 
         var result =
             command.ExecuteScalar();
@@ -91,9 +70,8 @@ public class ComplaintRepository : IComplaintRepository
         return Convert.ToInt64(result);
     }
 
-
-    public async Task<Complaint?> GetByIdAsync(
-        long complaintId,
+    public async Task<Appeal?> GetByIdAsync(
+        long appealId,
         CancellationToken cancellationToken = default)
     {
         using var connection =
@@ -109,23 +87,23 @@ public class ComplaintRepository : IComplaintRepository
 
         command.CommandText = """
             SELECT
+                AppealId,
                 ComplaintId,
-                CreatedByUserId,
-                CategoryId,
-                SeverityId,
-                StatusId,
-                Title,
-                Description,
+                SubmittedByUserId,
+                Reason,
+                StatusCode,
+                ReviewedByUserId,
+                DecisionReason,
                 CreatedAt,
-                UpdatedAt
-            FROM dbo.Complaints
-            WHERE ComplaintId = @ComplaintId;
+                ReviewedAt
+            FROM dbo.Appeals
+            WHERE AppealId = @AppealId;
             """;
 
         AddParameter(
             command,
-            "@ComplaintId",
-            complaintId);
+            "@AppealId",
+            appealId);
 
         using var reader =
             command.ExecuteReader();
@@ -138,21 +116,9 @@ public class ComplaintRepository : IComplaintRepository
         return Map(reader);
     }
 
-
-    public async Task<IReadOnlyList<Complaint>>
-        GetByUserIdAsync(
-            long userId,
-            CancellationToken cancellationToken = default)
-    {
-        return await GetCreatedByUserIdAsync(
-            userId,
-            cancellationToken);
-    }
-
-
-    public async Task<IReadOnlyList<Complaint>>
-        GetCreatedByUserIdAsync(
-            long userId,
+    public async Task<IReadOnlyList<Appeal>>
+        GetByComplaintIdAsync(
+            long complaintId,
             CancellationToken cancellationToken = default)
     {
         using var connection =
@@ -168,43 +134,41 @@ public class ComplaintRepository : IComplaintRepository
 
         command.CommandText = """
             SELECT
+                AppealId,
                 ComplaintId,
-                CreatedByUserId,
-                CategoryId,
-                SeverityId,
-                StatusId,
-                Title,
-                Description,
+                SubmittedByUserId,
+                Reason,
+                StatusCode,
+                ReviewedByUserId,
+                DecisionReason,
                 CreatedAt,
-                UpdatedAt
-            FROM dbo.Complaints
-            WHERE CreatedByUserId = @UserId
+                ReviewedAt
+            FROM dbo.Appeals
+            WHERE ComplaintId = @ComplaintId
             ORDER BY CreatedAt DESC;
             """;
 
         AddParameter(
             command,
-            "@UserId",
-            userId);
+            "@ComplaintId",
+            complaintId);
 
-        var complaints =
-            new List<Complaint>();
+        var appeals =
+            new List<Appeal>();
 
         using var reader =
             command.ExecuteReader();
 
         while (reader.Read())
         {
-            complaints.Add(
-                Map(reader));
+            appeals.Add(Map(reader));
         }
 
-        return complaints;
+        return appeals;
     }
 
-
-    public async Task<IReadOnlyList<Complaint>>
-        GetPendingForModerationAsync(
+    public async Task<IReadOnlyList<Appeal>>
+        GetPendingAsync(
             CancellationToken cancellationToken = default)
     {
         using var connection =
@@ -220,46 +184,39 @@ public class ComplaintRepository : IComplaintRepository
 
         command.CommandText = """
             SELECT
+                AppealId,
                 ComplaintId,
-                CreatedByUserId,
-                CategoryId,
-                SeverityId,
-                StatusId,
-                Title,
-                Description,
+                SubmittedByUserId,
+                Reason,
+                StatusCode,
+                ReviewedByUserId,
+                DecisionReason,
                 CreatedAt,
-                UpdatedAt
-            FROM dbo.Complaints
-            WHERE StatusId IN
-            (
-                2,
-                3,
-                4,
-                5,
-                6
-            )
+                ReviewedAt
+            FROM dbo.Appeals
+            WHERE StatusCode = 'SUBMITTED'
             ORDER BY CreatedAt ASC;
             """;
 
-        var complaints =
-            new List<Complaint>();
+        var appeals =
+            new List<Appeal>();
 
         using var reader =
             command.ExecuteReader();
 
         while (reader.Read())
         {
-            complaints.Add(
-                Map(reader));
+            appeals.Add(Map(reader));
         }
 
-        return complaints;
+        return appeals;
     }
 
-
-    public async Task<bool> UpdateStatusAsync(
-        long complaintId,
-        int statusId,
+    public async Task<bool> ReviewAsync(
+        long appealId,
+        long reviewedByUserId,
+        string statusCode,
+        string decisionReason,
         CancellationToken cancellationToken = default)
     {
         using var connection =
@@ -274,77 +231,92 @@ public class ComplaintRepository : IComplaintRepository
             connection.CreateCommand();
 
         command.CommandText = """
-            UPDATE dbo.Complaints
+            UPDATE dbo.Appeals
             SET
-                StatusId = @StatusId,
-                UpdatedAt = SYSUTCDATETIME()
-            WHERE ComplaintId = @ComplaintId;
+                StatusCode = @StatusCode,
+                ReviewedByUserId = @ReviewedByUserId,
+                DecisionReason = @DecisionReason,
+                ReviewedAt = SYSUTCDATETIME()
+            WHERE AppealId = @AppealId
+              AND StatusCode = 'SUBMITTED';
             """;
 
         AddParameter(
             command,
-            "@ComplaintId",
-            complaintId);
+            "@AppealId",
+            appealId);
 
         AddParameter(
             command,
-            "@StatusId",
-            statusId);
+            "@ReviewedByUserId",
+            reviewedByUserId);
 
-        var affectedRows =
+        AddParameter(
+            command,
+            "@StatusCode",
+            statusCode);
+
+        AddParameter(
+            command,
+            "@DecisionReason",
+            decisionReason);
+
+        var affected =
             command.ExecuteNonQuery();
 
-        return affectedRows > 0;
+        return affected > 0;
     }
 
-
-    private static Complaint Map(
+    private static Appeal Map(
         IDataRecord reader)
     {
-        return new Complaint
+        return new Appeal
         {
+            AppealId =
+                Convert.ToInt64(
+                    reader["AppealId"]),
+
             ComplaintId =
                 Convert.ToInt64(
                     reader["ComplaintId"]),
 
-            CreatedByUserId =
+            SubmittedByUserId =
                 Convert.ToInt64(
-                    reader["CreatedByUserId"]),
+                    reader["SubmittedByUserId"]),
 
-            CategoryId =
-                Convert.ToInt32(
-                    reader["CategoryId"]),
-
-            SeverityId =
-                Convert.ToInt32(
-                    reader["SeverityId"]),
-
-            StatusId =
-                Convert.ToInt32(
-                    reader["StatusId"]),
-
-            Title =
+            Reason =
                 Convert.ToString(
-                    reader["Title"])
+                    reader["Reason"])
                 ?? string.Empty,
 
-            Description =
+            StatusCode =
                 Convert.ToString(
-                    reader["Description"])
-                ?? string.Empty,
+                    reader["StatusCode"])
+                ?? "SUBMITTED",
+
+            ReviewedByUserId =
+                reader["ReviewedByUserId"] == DBNull.Value
+                    ? null
+                    : Convert.ToInt64(
+                        reader["ReviewedByUserId"]),
+
+            DecisionReason =
+                reader["DecisionReason"] == DBNull.Value
+                    ? null
+                    : Convert.ToString(
+                        reader["DecisionReason"]),
 
             CreatedAt =
                 Convert.ToDateTime(
                     reader["CreatedAt"]),
 
-            UpdatedAt =
-                reader["UpdatedAt"] == DBNull.Value
+            ReviewedAt =
+                reader["ReviewedAt"] == DBNull.Value
                     ? null
                     : Convert.ToDateTime(
-                        reader["UpdatedAt"])
+                        reader["ReviewedAt"])
         };
     }
-
 
     private static void AddParameter(
         IDbCommand command,
@@ -355,7 +327,6 @@ public class ComplaintRepository : IComplaintRepository
             command.CreateParameter();
 
         parameter.ParameterName = name;
-
         parameter.Value =
             value ?? DBNull.Value;
 

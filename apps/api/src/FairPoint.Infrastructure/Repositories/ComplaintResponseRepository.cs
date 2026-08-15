@@ -1,7 +1,6 @@
-﻿using System.Data.Common;
+﻿using System.Data;
 using FairPoint.Application.Interfaces;
 using FairPoint.Domain.Entities;
-using Microsoft.Data.SqlClient;
 
 namespace FairPoint.Infrastructure.Repositories;
 
@@ -19,17 +18,23 @@ public class ComplaintResponseRepository : IComplaintResponseRepository
         ComplaintResponse response,
         CancellationToken cancellationToken = default)
     {
-        const string sql = """
-            INSERT INTO ComplaintResponses
+        using var connection = _connectionFactory.CreateConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            connection.Open();
+        }
+
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            INSERT INTO dbo.ComplaintResponses
             (
                 ComplaintId,
                 UserId,
                 ResponseText,
                 CreatedAt,
-                UpdatedAt,
-                IsDeleted,
-                DeletedAt,
-                DeletedByUserId
+                IsDeleted
             )
             OUTPUT INSERTED.ResponseId
             VALUES
@@ -37,55 +42,27 @@ public class ComplaintResponseRepository : IComplaintResponseRepository
                 @ComplaintId,
                 @UserId,
                 @ResponseText,
-                @CreatedAt,
-                @UpdatedAt,
-                @IsDeleted,
-                @DeletedAt,
-                @DeletedByUserId
+                SYSUTCDATETIME(),
+                0
             );
             """;
 
-        await using var connection =
-            (DbConnection)_connectionFactory.CreateConnection();
+        AddParameter(
+            command,
+            "@ComplaintId",
+            response.ComplaintId);
 
-        await connection.OpenAsync(cancellationToken);
+        AddParameter(
+            command,
+            "@UserId",
+            response.UserId);
 
-        await using var command = connection.CreateCommand();
+        AddParameter(
+            command,
+            "@ResponseText",
+            response.ResponseText);
 
-        command.CommandText = sql;
-
-        command.Parameters.Add(
-            new SqlParameter("@ComplaintId", response.ComplaintId));
-
-        command.Parameters.Add(
-            new SqlParameter("@UserId", response.UserId));
-
-        command.Parameters.Add(
-            new SqlParameter("@ResponseText", response.ResponseText));
-
-        command.Parameters.Add(
-            new SqlParameter("@CreatedAt", response.CreatedAt));
-
-        command.Parameters.Add(
-            new SqlParameter(
-                "@UpdatedAt",
-                (object?)response.UpdatedAt ?? DBNull.Value));
-
-        command.Parameters.Add(
-            new SqlParameter("@IsDeleted", response.IsDeleted));
-
-        command.Parameters.Add(
-            new SqlParameter(
-                "@DeletedAt",
-                (object?)response.DeletedAt ?? DBNull.Value));
-
-        command.Parameters.Add(
-            new SqlParameter(
-                "@DeletedByUserId",
-                (object?)response.DeletedByUserId ?? DBNull.Value));
-
-        var result =
-            await command.ExecuteScalarAsync(cancellationToken);
+        var result = command.ExecuteScalar();
 
         return Convert.ToInt64(result);
     }
@@ -95,7 +72,16 @@ public class ComplaintResponseRepository : IComplaintResponseRepository
             long complaintId,
             CancellationToken cancellationToken = default)
     {
-        const string sql = """
+        using var connection = _connectionFactory.CreateConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            connection.Open();
+        }
+
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
             SELECT
                 ResponseId,
                 ComplaintId,
@@ -106,80 +92,163 @@ public class ComplaintResponseRepository : IComplaintResponseRepository
                 IsDeleted,
                 DeletedAt,
                 DeletedByUserId
-            FROM ComplaintResponses
+            FROM dbo.ComplaintResponses
             WHERE ComplaintId = @ComplaintId
               AND IsDeleted = 0
             ORDER BY CreatedAt ASC;
             """;
 
-        await using var connection =
-            (DbConnection)_connectionFactory.CreateConnection();
-
-        await connection.OpenAsync(cancellationToken);
-
-        await using var command = connection.CreateCommand();
-
-        command.CommandText = sql;
-
-        command.Parameters.Add(
-            new SqlParameter("@ComplaintId", complaintId));
-
-        await using var reader =
-            await command.ExecuteReaderAsync(cancellationToken);
+        AddParameter(
+            command,
+            "@ComplaintId",
+            complaintId);
 
         var responses = new List<ComplaintResponse>();
 
-        while (await reader.ReadAsync(cancellationToken))
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
         {
-            responses.Add(new ComplaintResponse
-            {
-                ResponseId =
-                    reader.GetInt64(
-                        reader.GetOrdinal("ResponseId")),
-
-                ComplaintId =
-                    reader.GetInt64(
-                        reader.GetOrdinal("ComplaintId")),
-
-                UserId =
-                    reader.GetInt64(
-                        reader.GetOrdinal("UserId")),
-
-                ResponseText =
-                    reader.GetString(
-                        reader.GetOrdinal("ResponseText")),
-
-                CreatedAt =
-                    reader.GetDateTime(
-                        reader.GetOrdinal("CreatedAt")),
-
-                UpdatedAt =
-                    reader.IsDBNull(
-                        reader.GetOrdinal("UpdatedAt"))
-                        ? null
-                        : reader.GetDateTime(
-                            reader.GetOrdinal("UpdatedAt")),
-
-                IsDeleted =
-                    reader.GetBoolean(
-                        reader.GetOrdinal("IsDeleted")),
-
-                DeletedAt =
-                    reader.IsDBNull(
-                        reader.GetOrdinal("DeletedAt"))
-                        ? null
-                        : reader.GetDateTime(
-                            reader.GetOrdinal("DeletedAt")),
-
-                DeletedByUserId =
-                    reader.IsDBNull(
-                        reader.GetOrdinal("DeletedByUserId"))
-                        ? null
-                        : reader.GetInt64(
-                            reader.GetOrdinal("DeletedByUserId"))
-            });
+            responses.Add(MapResponse(reader));
         }
 
         return responses;
+    }
+
+    public async Task<ComplaintResponse?> GetByIdAsync(
+        long responseId,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            connection.Open();
+        }
+
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT
+                ResponseId,
+                ComplaintId,
+                UserId,
+                ResponseText,
+                CreatedAt,
+                UpdatedAt,
+                IsDeleted,
+                DeletedAt,
+                DeletedByUserId
+            FROM dbo.ComplaintResponses
+            WHERE ResponseId = @ResponseId;
+            """;
+
+        AddParameter(
+            command,
+            "@ResponseId",
+            responseId);
+
+        using var reader = command.ExecuteReader();
+
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        return MapResponse(reader);
+    }
+
+    public async Task<bool> SoftDeleteAsync(
+        long responseId,
+        long deletedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            connection.Open();
+        }
+
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            UPDATE dbo.ComplaintResponses
+            SET
+                IsDeleted = 1,
+                DeletedAt = SYSUTCDATETIME(),
+                DeletedByUserId = @DeletedByUserId,
+                UpdatedAt = SYSUTCDATETIME()
+            WHERE ResponseId = @ResponseId
+              AND IsDeleted = 0;
+            """;
+
+        AddParameter(
+            command,
+            "@ResponseId",
+            responseId);
+
+        AddParameter(
+            command,
+            "@DeletedByUserId",
+            deletedByUserId);
+
+        var affectedRows = command.ExecuteNonQuery();
+
+        return affectedRows > 0;
+    }
+
+    private static ComplaintResponse MapResponse(
+        IDataRecord reader)
+    {
+        return new ComplaintResponse
+        {
+            ResponseId = Convert.ToInt64(
+                reader["ResponseId"]),
+
+            ComplaintId = Convert.ToInt64(
+                reader["ComplaintId"]),
+
+            UserId = Convert.ToInt64(
+                reader["UserId"]),
+
+            ResponseText = Convert.ToString(
+                reader["ResponseText"]) ?? string.Empty,
+
+            CreatedAt = Convert.ToDateTime(
+                reader["CreatedAt"]),
+
+            UpdatedAt = reader["UpdatedAt"] == DBNull.Value
+                ? null
+                : Convert.ToDateTime(
+                    reader["UpdatedAt"]),
+
+            IsDeleted = Convert.ToBoolean(
+                reader["IsDeleted"]),
+
+            DeletedAt = reader["DeletedAt"] == DBNull.Value
+                ? null
+                : Convert.ToDateTime(
+                    reader["DeletedAt"]),
+
+            DeletedByUserId =
+                reader["DeletedByUserId"] == DBNull.Value
+                    ? null
+                    : Convert.ToInt64(
+                        reader["DeletedByUserId"])
+        };
+    }
+
+    private static void AddParameter(
+        IDbCommand command,
+        string parameterName,
+        object value)
+    {
+        var parameter = command.CreateParameter();
+
+        parameter.ParameterName = parameterName;
+        parameter.Value = value ?? DBNull.Value;
+
+        command.Parameters.Add(parameter);
     }
 }

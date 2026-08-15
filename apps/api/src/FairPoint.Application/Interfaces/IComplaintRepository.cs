@@ -15,4 +15,16 @@ public interface IComplaintRepository
     Task<IReadOnlyList<Complaint>> GetByUserIdAsync(
         long userId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Complaint>> GetCreatedByUserIdAsync(
+        long userId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Complaint>> GetPendingForModerationAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<bool> UpdateStatusAsync(
+        long complaintId,
+        int statusId,
+        CancellationToken cancellationToken = default);
 }

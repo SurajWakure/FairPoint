@@ -11,4 +11,13 @@ public interface IComplaintResponseRepository
     Task<IReadOnlyList<ComplaintResponse>> GetByComplaintIdAsync(
         long complaintId,
         CancellationToken cancellationToken = default);
+
+    Task<ComplaintResponse?> GetByIdAsync(
+        long responseId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> SoftDeleteAsync(
+        long responseId,
+        long deletedByUserId,
+        CancellationToken cancellationToken = default);
 }
